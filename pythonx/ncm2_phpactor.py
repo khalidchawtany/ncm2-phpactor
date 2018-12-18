@@ -51,55 +51,57 @@ class Source(Ncm2Source):
         # }
 
         matches = []
+        try:
+            for e in result['suggestions']:
+                menu = e['info']
+                word = e['name']
+                t = e['type']
 
-        for e in result['suggestions']:
-            menu = e['info']
-            word = e['name']
-            t = e['type']
+                item = dict(word=word, menu=menu)
 
-            item = dict(word=word, menu=menu)
+                # snippet support
+                m = re.search(r'(\w+\s+)?\w+\((.*)\)', menu)
 
-            # snippet support
-            m = re.search(r'(\w+\s+)?\w+\((.*)\)', menu)
+                if m and (t == 'function' or t == 'method'):
 
-            if m and (t == 'function' or t == 'method'):
+                    params = m.group(2)
 
-                params = m.group(2)
+                    placeholders = []
+                    num = 1
+                    snip_args = ''
 
-                placeholders = []
-                num = 1
-                snip_args = ''
+                    if params != '':
 
-                if params != '':
+                        params = params.split(',')
 
-                    params = params.split(',')
+                        for param in params:
 
-                    for param in params:
+                            if "=" in param:
+                                # skip params with default value
+                                break
+                            else:
+                                param = re.search(r'\$\w+', param).group()
+                                ph = self.snippet_placeholder(num, param)
+                                placeholders.append(ph)
+                                num += 1
 
-                        if "=" in param:
-                            # skip params with default value
-                            break
-                        else:
-                            param = re.search(r'\$\w+', param).group()
-                            ph = self.snippet_placeholder(num, param)
-                            placeholders.append(ph)
-                            num += 1
+                        snip_args = ', '.join(placeholders)
 
-                    snip_args = ', '.join(placeholders)
+                        if len(placeholders) == 0:
+                            # don't jump out of parentheses if function has
+                            # parameters
+                            snip_args = self.snippet_placeholder(1)
 
-                    if len(placeholders) == 0:
-                        # don't jump out of parentheses if function has
-                        # parameters
-                        snip_args = self.snippet_placeholder(1)
+                    ph0 = self.snippet_placeholder(0)
+                    snippet = '%s(%s)%s' % (word, snip_args, ph0)
 
-                ph0 = self.snippet_placeholder(0)
-                snippet = '%s(%s)%s' % (word, snip_args, ph0)
+                    item['user_data'] = {'snippet': snippet, 'is_snippet': 1}
 
-                item['user_data'] = {'snippet': snippet, 'is_snippet': 1}
+                matches.append(item)
 
-            matches.append(item)
-
-        self.complete(ctx, ctx['startccol'], matches)
+            self.complete(ctx, ctx['startccol'], matches)
+        except KeyError:
+            pass
 
     def snippet_placeholder(self, num, txt=''):
         txt = txt.replace('\\', '\\\\')
